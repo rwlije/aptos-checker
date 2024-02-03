@@ -42,7 +42,7 @@ class AptosClient(RestClient):
 
     async def get_domain_or_subdomain_name(self, wallet_address):
         port_id, client = random.choice(list(self.clients.items()))
-        client.headers.update({"User-Agent": 'your bot 0.1'})
+        client.headers.update({"User-Agent": self.ua.random})
         await client.get(f'https://api.asocks.com/v2/proxy/refresh/{port_id}?apikey={ASOCKS_API_KEY}')
         url = f'https://www.aptosnames.com/api/mainnet/v1/primary-name/{wallet_address}'
 
@@ -154,7 +154,7 @@ class AptosClient(RestClient):
             ledger_version: Optional[int] = None,
     ) -> Any:
         port_id, client = random.choice(list(self.clients.items()))
-        client.headers.update({"User-Agent": 'your bot 0.1'})
+        client.headers.update({"User-Agent": self.ua.random})
         await client.get(f'https://api.asocks.com/v2/proxy/refresh/{port_id}?apikey={ASOCKS_API_KEY}')
 
         if not ledger_version:
@@ -182,7 +182,7 @@ class AptosClient(RestClient):
             ledger_version: Optional[int] = None,
     ) -> Dict[str, Any]:
         port_id, client = random.choice(list(self.clients.items()))
-        client.headers.update({"User-Agent": 'your bot 0.1'})
+        client.headers.update({"User-Agent": self.ua.random})
         await client.get(f'https://api.asocks.com/v2/proxy/refresh/{port_id}?apikey={ASOCKS_API_KEY}')
 
         if not ledger_version:
