@@ -1,0 +1,1 @@
+ASOCKS_API_KEY = "4xyy_lrCLO7XzUzKLEdkzWJD8_l5GcRc"
