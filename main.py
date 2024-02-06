@@ -24,9 +24,21 @@ async def main():
     results = [result for result in await asyncio.gather(*tasks) if isinstance(result, list)]
 
     try:
+<<<<<<< HEAD
         df = pd.DataFrame(results, columns=numpy.array(["address", "seed phrase", "private key"]))
 
         df.to_csv("files/table.csv", index=False, columns=("address", "seed phrase", "private key"))
+=======
+        df = pd.DataFrame(results, columns=numpy.array(["address", "seed phrase", "private key", "balance",
+                                                        "transactions", "primary domain name",
+                                                        "primary subdomain name", "quest 1 oat", "quest 2 oat",
+                                                        "quest 3 oat"]))
+
+        df.to_csv("files/table.csv", index=False, columns=("address", "seed phrase", "private key", "balance",
+                                                           "transactions", "primary domain name",
+                                                           "primary subdomain name", "quest 1 oat", "quest 2 oat",
+                                                           "quest 3 oat"))
+>>>>>>> parent of 70af364 (less requests)
         log.success("Работа успешно завершена!")
     except Exception:
         log.error("Не удалось занести данные в таблицу")

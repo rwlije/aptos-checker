@@ -71,12 +71,27 @@ class AptosClient(RestClient):
             private_key = self.mnemonic_to_private_key(seed_phrase)
             wallet = Account.load_key(private_key)
             wallet_address = wallet.address()
+<<<<<<< HEAD
 
             return [str(wallet_address), seed_phrase, private_key]
 
         except Exception as error:
             if isinstance(error, ResourceNotFound) and "0x3::token::TokenStore" in error.resource:
                 return [str(wallet_address), seed_phrase, private_key]
+=======
+            balance = str(int(await self.account_balance(wallet_address)) / 10 ** 8)
+            txs_amount = str(await self.account_sequence_number(wallet_address))
+            domain_name, subdomain_name = await self.get_domain_or_subdomain_name(wallet_address)
+            oats_info = await self.get_oats_info(wallet_address)
+
+            return [str(wallet_address), seed_phrase, private_key, balance, txs_amount, domain_name,
+                    subdomain_name, *oats_info]
+
+        except Exception as error:
+            if isinstance(error, ResourceNotFound) and "0x3::token::TokenStore" in error.resource:
+                return [str(wallet_address), seed_phrase, private_key, balance, txs_amount, domain_name,
+                        subdomain_name, 0, 0, 0]
+>>>>>>> parent of 70af364 (less requests)
             retry += 1
             if retry > 3:
                 self.log.error(f'Ошибка одного из кошельков -> {seed_phrase} ({error})')
