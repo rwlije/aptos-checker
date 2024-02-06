@@ -25,6 +25,7 @@ async def main():
 
     try:
 <<<<<<< HEAD
+<<<<<<< HEAD
         df = pd.DataFrame(results, columns=numpy.array(["address", "seed phrase", "private key"]))
 
         df.to_csv("files/table.csv", index=False, columns=("address", "seed phrase", "private key"))
@@ -39,6 +40,12 @@ async def main():
                                                            "primary subdomain name", "quest 1 oat", "quest 2 oat",
                                                            "quest 3 oat"))
 >>>>>>> parent of 70af364 (less requests)
+=======
+        df = pd.DataFrame(results, columns=numpy.array(["address", "seed phrase", "private key", "quest 3 oat"]))
+
+        df.to_csv("files/table.csv", index=False, columns=("address", "seed phrase", "private key",
+                                                           "quest 3 oat"))
+>>>>>>> parent of 2069312 (no requests)
         log.success("Работа успешно завершена!")
     except Exception:
         log.error("Не удалось занести данные в таблицу")
