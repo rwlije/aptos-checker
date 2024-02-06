@@ -85,7 +85,7 @@ class AptosClient(RestClient):
                         subdomain_name, 0, 0, 0]
             retry += 1
             if retry > 3:
-                self.log.error(f'Ошибка одного из кошельков -> ({seed_phrase})')
+                self.log.error(f'Ошибка одного из кошельков -> {seed_phrase} ({error})')
                 append_lines("files/unchecked_wallets.txt", seed_phrase + "\n")
                 return False
             return await self.get_all_info(seed_phrase, retry)
