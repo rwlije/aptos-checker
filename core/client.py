@@ -25,7 +25,7 @@ class PublicKey25519:
 
 
 class AptosClient(RestClient):
-    node_url = "https://rpc.ankr.com/premium-http/aptos/80de00887ce3078ccefd78d9c0396f92fa9cfc1ac168134bb9edf170a000b6c9/v1"
+    node_url = "https://fullnode.mainnet.aptoslabs.com/v1"
 
     def __init__(self, proxies, log):
         super().__init__(AptosClient.node_url)
