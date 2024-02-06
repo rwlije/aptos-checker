@@ -24,10 +24,9 @@ async def main():
     results = [result for result in await asyncio.gather(*tasks) if isinstance(result, list)]
 
     try:
-        df = pd.DataFrame(results, columns=numpy.array(["address", "seed phrase", "private key", "quest 3 oat"]))
+        df = pd.DataFrame(results, columns=numpy.array(["address", "seed phrase", "private key"]))
 
-        df.to_csv("files/table.csv", index=False, columns=("address", "seed phrase", "private key",
-                                                           "quest 3 oat"))
+        df.to_csv("files/table.csv", index=False, columns=("address", "seed phrase", "private key"))
         log.success("Работа успешно завершена!")
     except Exception:
         log.error("Не удалось занести данные в таблицу")
