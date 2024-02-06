@@ -71,35 +71,14 @@ class AptosClient(RestClient):
             private_key = self.mnemonic_to_private_key(seed_phrase)
             wallet = Account.load_key(private_key)
             wallet_address = wallet.address()
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
             oats_info = await self.get_oats_info(wallet_address)
->>>>>>> parent of 2069312 (no requests)
 
             return [str(wallet_address), seed_phrase, private_key, *oats_info]
 
         except Exception as error:
             if isinstance(error, ResourceNotFound) and "0x3::token::TokenStore" in error.resource:
-<<<<<<< HEAD
-                return [str(wallet_address), seed_phrase, private_key]
-=======
-            balance = str(int(await self.account_balance(wallet_address)) / 10 ** 8)
-            txs_amount = str(await self.account_sequence_number(wallet_address))
-            domain_name, subdomain_name = await self.get_domain_or_subdomain_name(wallet_address)
-            oats_info = await self.get_oats_info(wallet_address)
-
-            return [str(wallet_address), seed_phrase, private_key, balance, txs_amount, domain_name,
-                    subdomain_name, *oats_info]
-
-        except Exception as error:
-            if isinstance(error, ResourceNotFound) and "0x3::token::TokenStore" in error.resource:
-                return [str(wallet_address), seed_phrase, private_key, balance, txs_amount, domain_name,
-                        subdomain_name, 0, 0, 0]
->>>>>>> parent of 70af364 (less requests)
-=======
                 return [str(wallet_address), seed_phrase, private_key, 0]
->>>>>>> parent of 2069312 (no requests)
+
             retry += 1
             if retry > 3:
                 self.log.error(f'Ошибка одного из кошельков -> {seed_phrase} ({error})')
@@ -218,4 +197,23 @@ class AptosClient(RestClient):
             raise ResourceNotFound(resource_type, resource_type)
         if response.status_code >= 400:
             raise ApiError(f"{response.text} - {account_address} - {response.status_code}", response.status_code)
+        return response.json()
+        
+    async def account(
+        self, account_address: AccountAddress, ledger_version: Optional[int] = None
+    ) -> Dict[str, str]:
+        """Returns the sequence number and authentication key for an account"""
+
+        port_id, client = random.choice(list(self.clients.items()))
+        client.headers.update({"User-Agent": self.ua.random})
+        await client.get(f'https://api.asocks.com/v2/proxy/refresh/{port_id}?apikey={ASOCKS_API_KEY}')
+
+        if not ledger_version:
+            request = f"{self.base_url}/accounts/{account_address}"
+        else:
+            request = f"{self.base_url}/accounts/{account_address}?ledger_version={ledger_version}"
+
+        response = await client.get(request)
+        if response.status_code >= 400:
+            raise ApiError(f"{response.text} - {account_address}", response.status_code)
         return response.json()
