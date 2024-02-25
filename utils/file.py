@@ -7,6 +7,6 @@ def read_lines(path, encoding="utf-8"):
     return lines
 
 
-def append_lines(path, lines, encoding="utf-8"):
-    with open(path, mode="a", encoding=encoding) as f:
+def write_lines(path, lines, encoding="utf-8"):
+    with open(path, mode="w", encoding=encoding) as f:
         f.write(lines)

@@ -1,17 +1,14 @@
-from aptos_sdk.async_client import RestClient, ResourceNotFound, ApiError
+from aptos_sdk.async_client import RestClient, ApiError
 from aptos_sdk.account_address import AccountAddress
 from typing import Optional, Dict, Any
-from fake_useragent import UserAgent
 from aptos_sdk.account import Account
-from utils.files import append_lines
+from fake_useragent import UserAgent
 from ecdsa.curves import Ed25519
-from .constants import OATS
-from config import ASOCKS_API_KEY
+from core.constants import OATS
+from utils.log import log
 import asyncio
 import hashlib
-import random
 import struct
-import httpx
 import hmac
 
 
@@ -27,7 +24,7 @@ class PublicKey25519:
 class AptosClient(RestClient):
     node_url = "https://fullnode.mainnet.aptoslabs.com/v1"
 
-    def __init__(self, proxies, log):
+    def __init__(self):
         super().__init__(AptosClient.node_url)
 
         self.BIP39_PBKDF2_ROUNDS = 2048
@@ -36,55 +33,46 @@ class AptosClient(RestClient):
         self.BIP32_SEED_ED25519 = b'ed25519 seed'
         self.APTOS_DERIVATION_PATH = "m/44'/637'/0'/0'/0'"
         self.ua = UserAgent()
-        self.clients = {proxy.split(";")[1]: httpx.AsyncClient(
-            headers={"User-Agent": self.ua.random}, proxies={"http://": proxy.split(";")[0]}) for proxy in proxies}
-        self.log = log
 
-    async def get_domain_or_subdomain_name(self, wallet_address):
-        port_id, client = random.choice(list(self.clients.items()))
-        client.headers.update({"User-Agent": self.ua.random})
-        await client.get(f'https://api.asocks.com/v2/proxy/refresh/{port_id}?apikey={ASOCKS_API_KEY}')
+    async def get_domain_or_subdomain_name(self, wallet_address, session):
+        session.headers.update({"User-Agent": self.ua.random})
         url = f'https://www.aptosnames.com/api/mainnet/v1/primary-name/{wallet_address}'
 
-        domain_name, subdomain_name = "-", "-"
-
-        response = await client.get(url)
+        response = await session.get(url)
         response_json = response.json()
 
         if response_json:
             name = response_json.get("name")
+            domain_name = name + ".apt"
 
-            if not ("." in name):
-                domain_name = name + ".apt"
-            else:
-                subdomain_name = name + ".apt"
+        else:
+            domain_name = "-"
 
-        return domain_name, subdomain_name
+        return domain_name
 
-    async def get_oats_info(self, wallet_address):
-        tasks = [asyncio.create_task(self.get_token_balance(wallet_address, *OATS[oat].values())) for oat in OATS]
-
-        return await asyncio.gather(*tasks)
-
-    async def get_all_info(self, seed_phrase, retry=1):
+    async def get_all_info(self, seed_phrase, session, retry=1):
         try:
             private_key = self.mnemonic_to_private_key(seed_phrase)
             wallet = Account.load_key(private_key)
             wallet_address = wallet.address()
-            oats_info = await self.get_oats_info(wallet_address)
+            tasks = [
+                asyncio.create_task(self.account_balance(wallet_address, session)),
+                asyncio.create_task(self.account_sequence_number(wallet_address, session)),
+                asyncio.create_task(self.get_domain_or_subdomain_name(wallet_address, session)),
+                *[asyncio.create_task(self.get_token_balance(wallet_address, *OATS[oat].values(), session))
+                  for oat in OATS]
+                ]
+            results = await asyncio.gather(*tasks)
+            log.info(f'{wallet_address} | Проверил кошелек')
 
-            return [str(wallet_address), seed_phrase, private_key, *oats_info]
+            return [str(wallet_address), seed_phrase, private_key, *results]
 
         except Exception as error:
-            if isinstance(error, ResourceNotFound) and "0x3::token::TokenStore" in error.resource:
-                return [str(wallet_address), seed_phrase, private_key, 0]
-
             retry += 1
             if retry > 3:
-                self.log.error(f'Ошибка одного из кошельков -> {seed_phrase} ({error})')
-                append_lines("files/unchecked_wallets.txt", seed_phrase + "\n")
-                return False
-            return await self.get_all_info(seed_phrase, retry)
+                log.error(f'Ошибка одного из кошельков -> {seed_phrase} ({error})')
+                return seed_phrase
+            return await self.get_all_info(seed_phrase, session, retry)
 
     def mnemonic_to_bip39seed(self, mnemonic, passphrase):
         mnemonic = bytes(mnemonic, 'utf8')
@@ -100,11 +88,11 @@ class AptosClient(RestClient):
 
         if (i & self.BIP32_PRIVDEV) != 0:
             key = b'\x00' + parent_key
+
         else:
             key = bytes(PublicKey25519(parent_key))
 
         d = key + struct.pack('>L', i)
-
         h = hmac.new(k, d, hashlib.sha512).digest()
         key, chain_code = h[:32], h[32:]
 
@@ -139,10 +127,80 @@ class AptosClient(RestClient):
         for i in self.APTOS_DERIVATION_PATH.lstrip('m/').split('/'):
             if "'" in i:
                 path.append(self.BIP32_PRIVDEV + int(i[:-1]))
+
             else:
                 path.append(int(i))
 
         return path
+
+    async def account_balance(
+        self, account_address: AccountAddress, session, ledger_version: Optional[int] = None
+    ) -> int:
+        """Returns the test coin balance associated with the account"""
+        resource = await self.account_resource(
+            account_address,
+            "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>",
+            session,
+            ledger_version
+        )
+        if resource == 0:
+            return resource
+        return int(resource["data"]["coin"]["value"]) / 10 ** 8
+
+    async def get_token(
+        self,
+        owner: AccountAddress,
+        creator: AccountAddress,
+        collection_name: str,
+        token_name: str,
+        property_version: int,
+        session
+    ) -> Any:
+        resource = await self.account_resource(owner, "0x3::token::TokenStore", session)
+        if resource == 0:
+            return resource
+        token_store_handle = resource["data"]["tokens"]["handle"]
+
+        token_id = {
+            "token_data_id": {
+                "creator": str(creator),
+                "collection": collection_name,
+                "name": token_name,
+            },
+            "property_version": str(property_version),
+        }
+
+        try:
+            return await self.get_table_item(
+                token_store_handle,
+                "0x3::token::TokenId",
+                "0x3::token::Token",
+                token_id,
+                session
+            )
+        except ApiError as e:
+            if e.status_code == 404:
+                return {
+                    "id": token_id,
+                    "amount": "0",
+                }
+            raise
+
+    async def get_token_balance(
+        self,
+        owner: AccountAddress,
+        creator: AccountAddress,
+        collection_name: str,
+        token_name: str,
+        property_version: int,
+        session
+    ) -> int:
+        info = await self.get_token(
+            owner, creator, collection_name, token_name, property_version, session
+        )
+        if info == 0:
+            return info
+        return int(info["amount"])
 
     async def get_table_item(
             self,
@@ -150,11 +208,10 @@ class AptosClient(RestClient):
             key_type: str,
             value_type: str,
             key: Any,
-            ledger_version: Optional[int] = None,
+            session,
+            ledger_version: Optional[int] = None
     ) -> Any:
-        port_id, client = random.choice(list(self.clients.items()))
-        client.headers.update({"User-Agent": self.ua.random})
-        await client.get(f'https://api.asocks.com/v2/proxy/refresh/{port_id}?apikey={ASOCKS_API_KEY}')
+        session.headers.update({"User-Agent": self.ua.random})
 
         if not ledger_version:
             request = f"{self.base_url}/tables/{handle}/item"
@@ -162,7 +219,7 @@ class AptosClient(RestClient):
             request = (
                 f"{self.base_url}/tables/{handle}/item?ledger_version={ledger_version}"
             )
-        response = await client.post(
+        response = await session.post(
             request,
             json={
                 "key_type": key_type,
@@ -178,11 +235,10 @@ class AptosClient(RestClient):
             self,
             account_address: AccountAddress,
             resource_type: str,
-            ledger_version: Optional[int] = None,
-    ) -> Dict[str, Any]:
-        port_id, client = random.choice(list(self.clients.items()))
-        client.headers.update({"User-Agent": self.ua.random})
-        await client.get(f'https://api.asocks.com/v2/proxy/refresh/{port_id}?apikey={ASOCKS_API_KEY}')
+            session,
+            ledger_version: Optional[int] = None
+    ) -> Any:
+        session.headers.update({"User-Agent": self.ua.random})
 
         if not ledger_version:
             request = (
@@ -192,28 +248,25 @@ class AptosClient(RestClient):
             request = f"{self.base_url}/accounts/{account_address}/resource/{resource_type}?ledger_version=" \
                       f"{ledger_version}"
 
-        response = await client.get(request)
+        response = await session.get(request)
         if response.status_code == 404:
-            raise ResourceNotFound(resource_type, resource_type)
+            return 0
         if response.status_code >= 400:
             raise ApiError(f"{response.text} - {account_address} - {response.status_code}", response.status_code)
         return response.json()
-        
+
     async def account(
-        self, account_address: AccountAddress, ledger_version: Optional[int] = None
+        self, account_address: AccountAddress, session, ledger_version: Optional[int] = None
     ) -> Dict[str, str]:
         """Returns the sequence number and authentication key for an account"""
-
-        port_id, client = random.choice(list(self.clients.items()))
-        client.headers.update({"User-Agent": self.ua.random})
-        await client.get(f'https://api.asocks.com/v2/proxy/refresh/{port_id}?apikey={ASOCKS_API_KEY}')
+        session.headers.update({"User-Agent": self.ua.random})
 
         if not ledger_version:
             request = f"{self.base_url}/accounts/{account_address}"
         else:
             request = f"{self.base_url}/accounts/{account_address}?ledger_version={ledger_version}"
 
-        response = await client.get(request)
+        response = await session.get(request)
         if response.status_code >= 400:
             raise ApiError(f"{response.text} - {account_address}", response.status_code)
         return response.json()
