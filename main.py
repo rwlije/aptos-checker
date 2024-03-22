@@ -11,8 +11,9 @@ import numpy
 
 async def start_work(semaphore, seed_phrase, session, client):
     async with semaphore:
+        result = await client.get_all_info(seed_phrase, session)
         await asyncio.sleep(2)
-        return await client.get_all_info(seed_phrase, session)
+        return result
 
 
 async def main():
@@ -52,10 +53,10 @@ async def main():
     try:
         df = pd.DataFrame(succeeded_wallets, columns=numpy.array(["address", "seed phrase", "private key", "balance",
                                                                   "transactions", "domain name", "quest 1 oat",
-                                                                  "quest 2 oat", "quest 3 oat"]))
+                                                                  "quest 2 oat", "quest 3 oat", "quest 4 oat"]))
         df.to_csv("files/table.csv", index=False, columns=("address", "seed phrase", "private key", "balance",
                                                            "transactions", "domain name", "quest 1 oat",
-                                                           "quest 2 oat", "quest 3 oat"))
+                                                           "quest 2 oat", "quest 3 oat", "quest 4 oat"))
         write_lines("files/unchecked_wallets.txt", "\n".join(failed_wallets))
         log.success("Работа успешно завершена")
 
@@ -64,6 +65,10 @@ async def main():
 
 
 if __name__ == "__main__":
-    loop = asyncio.ProactorEventLoop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(main())
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+    except Exception:
+        pass
+
+    asyncio.run(main())
