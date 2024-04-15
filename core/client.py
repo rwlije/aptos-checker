@@ -34,7 +34,7 @@ class AptosClient(RestClient):
         self.APTOS_DERIVATION_PATH = "m/44'/637'/0'/0'/0'"
         self.ua = UserAgent()
 
-    async def get_domain_or_subdomain_name(self, wallet_address, session):
+    async def get_domain_name(self, wallet_address, session):
         session.headers.update({"User-Agent": self.ua.random})
         url = f'https://www.aptosnames.com/api/mainnet/v1/primary-name/{wallet_address}'
 
@@ -50,6 +50,14 @@ class AptosClient(RestClient):
 
         return domain_name
 
+    async def get_amount_of_quest_oats(self, wallet_address, versions_of_oat, session):
+        amount = 0
+
+        for version in versions_of_oat:
+            amount += await self.get_token_balance(wallet_address, *versions_of_oat[version].values(), session)
+
+        return amount
+
     async def get_all_info(self, seed_phrase, session, retry=1):
         try:
             private_key = self.mnemonic_to_private_key(seed_phrase)
@@ -58,20 +66,21 @@ class AptosClient(RestClient):
             tasks = [
                 asyncio.create_task(self.account_balance(wallet_address, session)),
                 asyncio.create_task(self.account_sequence_number(wallet_address, session)),
-                asyncio.create_task(self.get_domain_or_subdomain_name(wallet_address, session)),
-                *[asyncio.create_task(self.get_token_balance(wallet_address, *OATS[oat].values(), session))
-                  for oat in OATS]
+                asyncio.create_task(self.get_domain_name(wallet_address, session)),
+                *[asyncio.create_task(self.get_amount_of_quest_oats(wallet_address, OATS[quest], session))
+                  for quest in OATS]
                 ]
             results = await asyncio.gather(*tasks)
             log.info(f'{wallet_address} | Проверил кошелек')
-
             return [str(wallet_address), seed_phrase, private_key, *results]
 
         except Exception as error:
             retry += 1
+
             if retry > 3:
                 log.error(f'Ошибка одного из кошельков -> {seed_phrase} ({error})')
                 return seed_phrase
+
             return await self.get_all_info(seed_phrase, session, retry)
 
     def mnemonic_to_bip39seed(self, mnemonic, passphrase):
