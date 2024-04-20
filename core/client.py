@@ -50,13 +50,13 @@ class AptosClient(RestClient):
 
         return domain_name
 
-    async def get_amount_of_quest_oats(self, wallet_address, versions_of_oat, session):
-        amount = 0
+    async def check_quest_oats(self, wallet_address, versions_of_oat, session):
 
         for version in versions_of_oat:
-            amount += await self.get_token_balance(wallet_address, *versions_of_oat[version].values(), session)
+            if await self.get_token_balance(wallet_address, *versions_of_oat[version].values(), session):
+                return 1
 
-        return amount
+        return 0
 
     async def get_all_info(self, seed_phrase, session, retry=1):
         try:
@@ -67,7 +67,7 @@ class AptosClient(RestClient):
                 asyncio.create_task(self.account_balance(wallet_address, session)),
                 asyncio.create_task(self.account_sequence_number(wallet_address, session)),
                 asyncio.create_task(self.get_domain_name(wallet_address, session)),
-                *[asyncio.create_task(self.get_amount_of_quest_oats(wallet_address, OATS[quest], session))
+                *[asyncio.create_task(self.check_quest_oats(wallet_address, OATS[quest], session))
                   for quest in OATS]
                 ]
             results = await asyncio.gather(*tasks)

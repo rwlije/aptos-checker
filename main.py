@@ -1,6 +1,7 @@
 from core.client import AptosClient
 from utils.file import write_lines
 from utils.file import read_lines
+from core.constants import OATS
 from itertools import cycle
 from utils.log import log
 import pandas as pd
@@ -36,7 +37,7 @@ async def main():
     sessions = [httpx.AsyncClient(proxies={"all://": proxy}, timeout=timeout) for proxy in unique_proxies]
 
     try:
-        csv_seed_phrases = list(pd.read_csv("files/table.csv")["seed phrase"])
+        csv_seed_phrases = list(pd.read_csv("files/table.csv")["seed phrase"])[:-1]
         txt_seed_phrases = read_lines("files/seed_phrases.txt")
         seed_phrases = csv_seed_phrases + txt_seed_phrases
 
@@ -54,6 +55,11 @@ async def main():
         df = pd.DataFrame(succeeded_wallets, columns=numpy.array(["address", "seed phrase", "private key", "balance",
                                                                   "transactions", "domain name", "quest 1 oat",
                                                                   "quest 2 oat", "quest 3 oat", "quest 4 oat"]))
+        df.loc[df.shape[0]] = [None for _ in range(df.shape[1] - len(OATS))] + [int(df[column].sum()) for column in
+                                                                                df.columns[-len(OATS):]]
+        for column in df.columns[-len(OATS):]:
+            df[column] = df[column].astype(int)
+            
         df.to_csv("files/table.csv", index=False, columns=("address", "seed phrase", "private key", "balance",
                                                            "transactions", "domain name", "quest 1 oat",
                                                            "quest 2 oat", "quest 3 oat", "quest 4 oat"))
