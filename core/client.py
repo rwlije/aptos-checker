@@ -76,7 +76,7 @@ class AptosClient(RestClient):
 
         except Exception as error:
             retry += 1
-            await asyncio.sleep(2.5)
+            await asyncio.sleep(5)
 
             if retry > 3:
                 log.error(f'Ошибка одного из кошельков -> {seed_phrase} ({error})')

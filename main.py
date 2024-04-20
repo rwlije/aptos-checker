@@ -14,7 +14,7 @@ import numpy
 async def start_work(semaphore, seed_phrase, session, client):
     async with semaphore:
         result = await client.get_all_info(seed_phrase, session)
-        await asyncio.sleep(2.5)
+        await asyncio.sleep(5)
         return result
 
 
