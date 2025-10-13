@@ -35,7 +35,7 @@ async def main():
     client = AptosClient()
     semaphore = asyncio.Semaphore(len(proxies))
     timeout = httpx.Timeout(15, read=None)
-    sessions = [httpx.AsyncClient(proxies={"all://": proxy}, timeout=timeout) for proxy in unique_proxies]
+    sessions = [httpx.AsyncClient(proxy=proxy, timeout=timeout) for proxy in unique_proxies]
 
     try:
         csv_seed_phrases = list(pd.read_csv("files/table.csv")["seed phrase"])[:-1]

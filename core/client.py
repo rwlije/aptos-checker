@@ -146,16 +146,44 @@ class AptosClient(RestClient):
     async def account_balance(
         self, account_address: AccountAddress, session, ledger_version: Optional[int] = None
     ) -> int:
-        """Returns the test coin balance associated with the account"""
-        resource = await self.account_resource(
-            account_address,
-            "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>",
-            session,
-            ledger_version
-        )
-        if resource == 0:
-            return resource
-        return int(resource["data"]["coin"]["value"]) / 10 ** 8
+        """Returns the APT balance associated with the account"""
+        session.headers.update({"User-Agent": self.ua.random})
+        
+        # Пробуем получить баланс через view function (новый способ для FA)
+        try:
+            payload = {
+                "function": "0x1::coin::balance",
+                "type_arguments": ["0x1::aptos_coin::AptosCoin"],
+                "arguments": [str(account_address)]
+            }
+            
+            if ledger_version:
+                request = f"{self.base_url}/view?ledger_version={ledger_version}"
+            else:
+                request = f"{self.base_url}/view"
+            
+            response = await session.post(request, json=payload)
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result and len(result) > 0:
+                    return int(result[0]) / 10 ** 8
+        except Exception:
+            pass
+        
+        # Fallback: пробуем старый способ через CoinStore
+        try:
+            resource = await self.account_resource(
+                account_address,
+                "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>",
+                session,
+                ledger_version
+            )
+            if resource == 0:
+                return 0
+            return int(resource["data"]["coin"]["value"]) / 10 ** 8
+        except Exception:
+            return 0
 
     async def get_token(
         self,
